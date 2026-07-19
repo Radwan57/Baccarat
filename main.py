@@ -121,7 +121,6 @@ def generate_predictions_mirror_shifts(ref_list, key_list, memory_data):
         predictions.append(final_col_str)
         last_column = final_col_str
     return " ".join(predictions), live_shift_pct 
-
 # --- واجهة الويب لضمان عمل الخدمة ---
 @app.route('/')
 def home():
@@ -130,3 +129,17 @@ def home():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
+    
+# --- بداية بوابة تحديث الدفتر ---
+from flask import request, jsonify
+
+@app.route('/update_ledger', methods=['POST'])
+def update_ledger():
+    data = request.json
+    new_round = data.get('round_data')
+    if new_round:
+        with open(NOTEBOOK_FILE, 'a') as f:
+            f.write(f"\n{new_round}")
+        return jsonify({"message": "تم تحديث الدفتر بنجاح"}), 200
+    return jsonify({"error": "خطأ في البيانات"}), 400
+# --- نهاية بوابة تحديث الدفتر ---
