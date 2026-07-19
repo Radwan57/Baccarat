@@ -5,10 +5,10 @@ app = Flask(__name__)
 
 NOTEBOOK_FILE = "ledger_notebook.txt" 
 
+# --- المعادلات الأساسية الخاصة بك ---
 def load_notebook_memory():
     if not os.path.exists(NOTEBOOK_FILE):
-        with open(NOTEBOOK_FILE, "w", encoding="utf-8") as f:
-            f.write("")
+        with open(NOTEBOOK_FILE, "w", encoding="utf-8") as f: f.write("")
         return []
     memory_data = []
     current_partition = {}
@@ -20,16 +20,11 @@ def load_notebook_memory():
             if current_partition:
                 memory_data.append(current_partition)
                 current_partition = {}
-        elif line.startswith("REFERENCE:"):
-            current_partition["reference"] = line.replace("REFERENCE:", "").strip()
-        elif line.startswith("KEY:"):
-            current_partition["key"] = line.replace("KEY:", "").strip()
-        elif line.startswith("PREDICTIONS:"):
-            current_partition["predictions"] = line.replace("PREDICTIONS:", "").strip()
-        elif line.startswith("ACTUAL_RESULTS:"):
-            current_partition["actual_results"] = line.replace("ACTUAL_RESULTS:", "").strip()
-    if current_partition:
-        memory_data.append(current_partition)
+        elif line.startswith("REFERENCE:"): current_partition["reference"] = line.replace("REFERENCE:", "").strip()
+        elif line.startswith("KEY:"): current_partition["key"] = line.replace("KEY:", "").strip()
+        elif line.startswith("PREDICTIONS:"): current_partition["predictions"] = line.replace("PREDICTIONS:", "").strip()
+        elif line.startswith("ACTUAL_RESULTS:"): current_partition["actual_results"] = line.replace("ACTUAL_RESULTS:", "").strip()
+    if current_partition: memory_data.append(current_partition)
     return memory_data 
 
 def auto_fix_missing_spaces(input_str):
@@ -127,10 +122,10 @@ def generate_predictions_mirror_shifts(ref_list, key_list, memory_data):
         last_column = final_col_str
     return " ".join(predictions), live_shift_pct 
 
-# --- Web Interface (Flask) ---
+# --- واجهة الويب لضمان عمل الخدمة ---
 @app.route('/')
 def home():
-    return "Baccarat Engine is running and Active!"
+    return "Baccarat Core Engine is Active and Running!"
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
