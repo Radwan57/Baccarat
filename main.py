@@ -1,6 +1,6 @@
 import os
 from flask import Flask
-
+from flask import request, jsonify
 app = Flask(__name__)
 
 NOTEBOOK_FILE = "ledger_notebook.txt" 
@@ -131,7 +131,6 @@ if __name__ == '__main__':
     app.run(host='0.0.0.0', port=port)
     
 # --- بداية بوابة تحديث الدفتر ---
-from flask import request, jsonify
 
 @app.route('/update_ledger', methods=['POST'])
 def update_ledger():
