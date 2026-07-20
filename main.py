@@ -1,14 +1,12 @@
 import os
-from flask import Flask
-from flask import request, jsonify
-app = Flask(__name__)
+import flet as ft
 
-NOTEBOOK_FILE = "ledger_notebook.txt" 
+NOTEBOOK_FILE = "ledger_notebook.txt"
 
-# --- المعادلات الأساسية الخاصة بك ---
 def load_notebook_memory():
     if not os.path.exists(NOTEBOOK_FILE):
-        with open(NOTEBOOK_FILE, "w", encoding="utf-8") as f: f.write("")
+        with open(NOTEBOOK_FILE, "w", encoding="utf-8") as f:
+            f.write("")
         return []
     memory_data = []
     current_partition = {}
@@ -20,12 +18,17 @@ def load_notebook_memory():
             if current_partition:
                 memory_data.append(current_partition)
                 current_partition = {}
-        elif line.startswith("REFERENCE:"): current_partition["reference"] = line.replace("REFERENCE:", "").strip()
-        elif line.startswith("KEY:"): current_partition["key"] = line.replace("KEY:", "").strip()
-        elif line.startswith("PREDICTIONS:"): current_partition["predictions"] = line.replace("PREDICTIONS:", "").strip()
-        elif line.startswith("ACTUAL_RESULTS:"): current_partition["actual_results"] = line.replace("ACTUAL_RESULTS:", "").strip()
-    if current_partition: memory_data.append(current_partition)
-    return memory_data 
+        elif line.startswith("REFERENCE:"):
+            current_partition["reference"] = line.replace("REFERENCE:", "").strip()
+        elif line.startswith("KEY:"):
+            current_partition["key"] = line.replace("KEY:", "").strip()
+        elif line.startswith("PREDICTIONS:"):
+            current_partition["predictions"] = line.replace("PREDICTIONS:", "").strip()
+        elif line.startswith("ACTUAL_RESULTS:"):
+            current_partition["actual_results"] = line.replace("ACTUAL_RESULTS:", "").strip()
+    if current_partition:
+        memory_data.append(current_partition)
+    return memory_data
 
 def auto_fix_missing_spaces(input_str):
     tokens = input_str.split()
@@ -36,7 +39,7 @@ def auto_fix_missing_spaces(input_str):
             fixed_tokens.append(token[3:])
         else:
             fixed_tokens.append(token)
-    return " ".join(fixed_tokens) 
+    return " ".join(fixed_tokens)
 
 def extract_horizontal_transitions(columns_list):
     transitions = []
@@ -50,7 +53,7 @@ def extract_horizontal_transitions(columns_list):
             else:
                 col_trans.append(0)
         transitions.append(col_trans)
-    return transitions 
+    return transitions
 
 def calculate_total_key_shift_ratio(key_list):
     total_rounds = 0
@@ -63,17 +66,20 @@ def calculate_total_key_shift_ratio(key_list):
                 total_rounds += 1
                 if prev_col[r] != curr_col[r]:
                     total_shifts += 1
-    return int((total_shifts / max(1, total_rounds)) * 100) 
+    return int((total_shifts / max(1, total_rounds)) * 100)
 
 def generate_predictions_mirror_shifts(ref_list, key_list, memory_data):
     predictions = []
     opponents = {"B": "P", "P": "B"}
+    
     live_full_track = ref_list + key_list
     live_shift_pct = calculate_total_key_shift_ratio(live_full_track)
+    
     live_b_count = sum(col.count("B") for col in key_list[:8])
     live_p_count = sum(col.count("P") for col in key_list[:8])
     dominant_live_char = "B" if live_b_count >= live_p_count else "P"
     final_resolved_transitions = []
+    
     for i in range(10):
         col_decision = []
         for r in range(3):
@@ -84,12 +90,15 @@ def generate_predictions_mirror_shifts(ref_list, key_list, memory_data):
                 p_ref = partition.get("reference", "").split()
                 p_key = partition.get("key", "").split()
                 p_actuals = partition.get("actual_results", "").split()
+                
                 if len(p_key) >= 8 and len(p_actuals) >= 10:
                     hist_full_track = p_ref + p_key
                     hist_pct = calculate_total_key_shift_ratio(hist_full_track)
+                    
                     if abs(hist_pct - live_shift_pct) <= 15:
                         full_hist = hist_full_track + p_actuals
                         hist_trans = extract_horizontal_transitions(full_hist)
+                        
                         hist_idx = (len(hist_full_track) - 1) + i
                         if hist_idx < len(hist_trans):
                             match_found = True
@@ -101,6 +110,7 @@ def generate_predictions_mirror_shifts(ref_list, key_list, memory_data):
                 round_counter = (i * 3) + r + 1
                 col_decision.append("SHIFT" if (round_counter * 31) % 100 <= live_shift_pct else "STATIC")
         final_resolved_transitions.append(col_decision)
+        
     last_column = key_list[-1]
     for i in range(10):
         preds_col = []
@@ -120,25 +130,72 @@ def generate_predictions_mirror_shifts(ref_list, key_list, memory_data):
         final_col_str = "".join(preds_col)
         predictions.append(final_col_str)
         last_column = final_col_str
-    return " ".join(predictions), live_shift_pct 
-# --- واجهة الويب لضمان عمل الخدمة ---
-@app.route('/')
-def home():
-    return "Baccarat Core Engine is Active and Running!"
+    return " ".join(predictions), live_shift_pct
 
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+def generate_table_and_analysis(predictions, actual_input):
+    cols_pred = predictions.split()
+    actual_rows = actual_input.split()
+    table_header = "| COLUMN | PREDICTION | ACTUAL TAB | HIT COUNT |\n|---|---|---|---|\n"
+    table_rows = ""
+    for i, pred in enumerate(cols_pred):
+        col_num = i + 9
+        actual = actual_rows[i] if i < len(actual_rows) else "???"
+        hit_count = sum(1 for p, a in zip(pred, actual) if p == a)
+        table_rows += f"| Col [{col_num:02d}] | {pred} | {actual} | {hit_count}/3 |\n"
+    return table_header + table_rows
+
+def save_to_notebook_as_table(reference, key, predictions, actual_results, table_content):
+    with open(NOTEBOOK_FILE, "a", encoding="utf-8") as f:
+        f.write("\n--- PARTITION ---\nREFERENCE: " + reference + "\nKEY: " + key + "\nPREDICTIONS: " + predictions + "\nACTUAL_RESULTS: " + actual_results + "\n\n[GEOMETRIC ANALYSIS TABLE]:\n" + table_content + "----------------------------------------------------------------------\n")
+
+def main(page: ft.Page):
+    page.title = "Baccarat Notebook Engine"
+    page.rtl = True
+    page.vertical_alignment = ft.MainAxisAlignment.START
+    page.scroll = ft.ScrollMode.AUTO
+
+    ref_input = ft.TextField(label="أدخل المرجع (REFERENCE)", multiline=True, border_color="blue")
+    key_input = ft.TextField(label="أدخل المفتاح 8 أعمدة (KEY)", multiline=True, border_color="green")
+    actual_input = ft.TextField(label="أدخل النتائج الفعلية (ACTUAL)", multiline=True, border_color="orange")
     
-# --- بداية بوابة تحديث الدفتر ---
+    output_text = ft.Text(value="", selectable=True, size=16)
 
-@app.route('/update_ledger', methods=['POST'])
-def update_ledger():
-    data = request.json
-    new_round = data.get('round_data')
-    if new_round:
-        with open(NOTEBOOK_FILE, 'a') as f:
-            f.write(f"\n{new_round}")
-        return jsonify({"message": "تم تحديث الدفتر بنجاح"}), 200
-    return jsonify({"error": "خطأ في البيانات"}), 400
-# --- نهاية بوابة تحديث الدفتر ---
+    def run_calculation(e):
+        try:
+            ref_val = ref_input.value.strip().upper()
+            key_val = key_input.value.strip().upper()
+            if not ref_val or not key_val:
+                output_text.value = "الرجاء إدخال المرجع والمفتاح أولاً!"
+                page.update()
+                return
+
+            past_memory = load_notebook_memory()
+            preds, shift_conf = generate_predictions_mirror_shifts(ref_val.split(), key_val.split(), past_memory)
+            
+            act_val = actual_input.value.strip().upper()
+            if act_val:
+                act_val = auto_fix_missing_spaces(act_val)
+                table_out = generate_table_and_analysis(preds, act_val)
+                save_to_notebook_as_table(ref_val, key_val, preds, act_val, table_out)
+                output_text.value = f"التوقعات (9 إلى 18):\n{preds}\n\nنسبة الإزاحة: {shift_conf}%\n\nالتحليل والجدول:\n{table_out}\n\n[تم الحفظ في الدفتر بنجاح!]"
+            else:
+                output_text.value = f"التوقعات (9 إلى 18):\n{preds}\n\nنسبة الإزاحة: {shift_conf}%\n(أدخل النتائج الفعلية أسفل لحفظها بالدفتر)."
+            page.update()
+        except Exception as ex:
+            output_text.value = f"حدث خطأ أثناء المعالجة: {str(ex)}"
+            page.update()
+
+    calc_button = ft.ElevatedButton(text="تشغيل التحليل واستخراج التوقعات", on_click=run_calculation, color="white", bgcolor="green")
+
+    page.add(
+        ft.Text("نظام تحليل البكاراه الذكي", size=20, weight=ft.FontWeight.BOLD),
+        ref_input,
+        key_input,
+        actual_input,
+        calc_button,
+        ft.Divider(),
+        output_text
+    )
+
+if __name__ == "__main__":
+    ft.app(target=main)
